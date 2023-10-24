@@ -25,9 +25,10 @@ class NeuralNetwork:
         self.hidden_output = sigmoid(self.hidden_input)
         self.output = np.dot(self.hidden_output, self.weights_hidden_output) + self.bias_output
         return self.output
-
+    
     def backward(self, inputs, targets, learning_rate):
         error = targets - self.output
+        print("error: ",error)
         d_output = error
         error_hidden = d_output.dot(self.weights_hidden_output.T)
         d_hidden = error_hidden * sigmoid_derivative(self.hidden_output)
@@ -35,16 +36,26 @@ class NeuralNetwork:
         # Update weights and biases
         self.weights_hidden_output += self.hidden_output.T.dot(d_output) * learning_rate
         self.bias_output += np.sum(d_output, axis=0, keepdims=True) * learning_rate
-        self.weights_input_hidden += inputs.T.dot(d_hidden) * learning_rate
+        self.weights_input_hidden += inputs.reshape(-1,1).dot(d_hidden) * learning_rate
         self.bias_hidden += np.sum(d_hidden, axis=0, keepdims=True) * learning_rate
 
-    def train(self, train_data, learning_rate, epochs):
-        for epoch in range(epochs):
-            for data_point in train_data:
-                inputs = data_point[:self.input_size]
-                targets = data_point[self.input_size:]
-                self.forward(inputs)
-                self.backward(inputs, targets, learning_rate)
+    def train(self, train_data, learning_rate):
+        #for epoch in range(epochs):
+        #    if(epoch/100 != 0 and epoch % 100 == 0):
+        #        print("Run {} epoch...\n".format(epoch))
+        i = 0
+        for data_point in train_data:
+            i += 1
+            if i == 1:
+                print(data_point)
+            inputs = data_point[:self.input_size]
+            if i == 1:
+                print(inputs)
+            targets = data_point[self.input_size]
+            if i == 1:
+                print(targets)
+            self.forward(inputs)
+            self.backward(inputs, targets, learning_rate)
 
     def predict(self, test_data):
         predictions = []

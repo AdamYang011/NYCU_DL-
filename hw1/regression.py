@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 from regression_model import NeuralNetwork, calculate_rms
+import matplotlib.pyplot as plt
 
 #df = pd.read_csv("./DL_HW1/energy_efficiency_data.csv")
 #print(df.head())
@@ -21,7 +22,7 @@ def shuffle_dataset(data):
 def encode_categorical_features(data, orientation_dict, glazing_dict):
     # Encode orientation (north, south, east, west)
     encoded_orientation = np.zeros((data.shape[0], len(orientation_dict)), dtype=int)
-    print("data shape: ",data.shape[0])
+    #print("data shape: ",data.shape[0])
     for i in range(data.shape[0]):
         k = str(int(data[i, 5]))
         #if i < 5:
@@ -33,8 +34,8 @@ def encode_categorical_features(data, orientation_dict, glazing_dict):
     
     original_data = data[:, :5]
     glazing_area_data = data[:, 6].reshape(-1, 1)  # 轉換為列向量
+    #predict_catagory_data = data[:, -2:].reshape(-1, 2)  # 轉換為列向量
     predict_catagory_data = data[:, -2].reshape(-1, 1)  # 轉換為列向量
-    print(data[:, -2])
     # Encode glazing area distribution (uniform, north, south, east, west)
     encoded_glazing = np.zeros((data.shape[0], len(glazing_dict)), dtype=int)
     for i in range(data.shape[0]):
@@ -50,8 +51,6 @@ def encode_categorical_features(data, orientation_dict, glazing_dict):
     # Replace the original columns with the encoded one-hot vectors
     data = np.delete(data, [5, 7], axis=1)
     data = np.concatenate((original_data, encoded_orientation,glazing_area_data ,encoded_glazing,predict_catagory_data), axis=1)
-    print(data[0])
-
     return data
 
 # Function to split the dataset into training and testing sets
@@ -70,20 +69,21 @@ if __name__ == "__main__":
 
     # Define dictionaries for categorical feature encoding
     orientation_dict = {'2': 0, '3': 1, '4': 2, '5': 3}
-    glazing_dict = {'0': 0, '1': 1, '2': 2, '3': 3, '4': 4, '5': 5, '6': 6}
+    glazing_dict = {'0': 0, '1': 1, '2': 2, '3': 3, '4': 4, '5': 5}
 
     # Shuffle the dataset
     #shuffled_data = shuffle_dataset(data)
 
     # Encode categorical features
     encoded_data = encode_categorical_features(data, orientation_dict, glazing_dict)
-
+    #print(encoded_data[0])
     # Split the dataset into training and testing sets
-    '''train_data, test_data = split_dataset(encoded_data, train_ratio=0.75)
+    train_data, test_data = split_dataset(encoded_data, train_ratio=0.75)
 
     # Define the neural network architecture
-    input_size = data.shape[1] - 2  # Remove the two columns that were one-hot encoded
-    hidden_size = 8  # Adjust the number of hidden units as needed
+    input_size = train_data.shape[1] - 1  # Remove the two columns that were one-hot encoded
+    #print(input_size)
+    hidden_size = 10  # Adjust the number of hidden units as needed
     output_size = 1  # Assuming a single output for heating load prediction
 
     # Create the neural network
@@ -91,16 +91,36 @@ if __name__ == "__main__":
 
     # Train the neural network
     learning_rate = 0.01
-    epochs = 1000
-    nn.train(train_data, learning_rate, epochs)
+    epochs = 3
+    train_error = []
 
-    # Test the neural network
-    predictions = nn.predict(test_data)
+    for epoch in range(epochs):
+        nn.train(train_data, learning_rate)
+        training_predictions = nn.predict(train_data)
+        #print("train_predict: ",training_predictions)
+        training_targets = train_data[:, input_size:]
+        #print("train_target: ",training_targets)
+        training_rms_error = calculate_rms(training_predictions, training_targets)
+        print(training_rms_error)
+        train_error.append(training_rms_error)
+
+    # Test the neural network in testing dataset
+    testing_predictions = nn.predict(test_data)
 
     # Calculate RMS error
     targets = test_data[:, input_size:]
-    rms_error = calculate_rms(predictions, targets)
+    rms_error = calculate_rms(testing_predictions, targets)
 
-    print("Root Mean Square Error (RMS):", rms_error)'''
+    print("RMS Error of testing: ", train_error[-1])
+    print("RMS Error of testing: ", rms_error)
+
+    # 绘制学习曲线
+    plt.figure()
+    plt.plot(range(epochs), train_error, label='Training RMS Error')
+    plt.xlabel('Iterations')
+    plt.ylabel('RMS Error')
+    plt.legend()
+    plt.title('Learning Curve')
+    plt.show()
 
 
