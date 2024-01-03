@@ -31,7 +31,7 @@ class ImageDataset(Dataset):
         # Iterate over sub-directories
         for class_dir in sorted(os.listdir(self.root_dir)):
             class_dir_path = os.path.join(self.root_dir, class_dir)
-            print(class_dir_path)
+            print(class_idx,class_dir)
             if os.path.isdir(class_dir_path):
                 self.class_labels[class_dir] = class_idx
                 class_idx += 1
@@ -67,7 +67,8 @@ class ImageDatasetTest(Dataset):
         self.images = []
 
         # Iterate over images in the test sub-directory
-        for img_filename in sorted(os.listdir(self.root_dir)):
+        for img_filename in sorted(os.listdir(self.root_dir), key=lambda x: int(x.split('.')[0])):
+            print(img_filename)
             if img_filename.endswith(".jpg"):
                 img_path = os.path.join(self.root_dir, img_filename)
                 self.images.append(img_path)
@@ -168,8 +169,8 @@ def val (model, dataloader, loss_fn, device):
         
         return val_loss, val_acc
 
-# Training loop -> results dictionary
-def training_loop(model, train_dataloader, val_dataloader, device, epochs, patience):
+'''# Training loop -> results dictionary
+def training_loop(model, train_dataloader, val_dataloader, device, epochs, patience, save_path):
     # empty dict for restore results
     results = {"train_loss":[], "train_acc":[], "val_loss":[], "val_acc":[]}
     
@@ -210,6 +211,7 @@ def training_loop(model, train_dataloader, val_dataloader, device, epochs, patie
         
             model_state_dict = model.state_dict()
             best_model.load_state_dict(model_state_dict)
+            torch.save(best_model.state_dict(), save_path)
         else:
             num_no_improvement +=1
     
@@ -230,11 +232,76 @@ def training_loop(model, train_dataloader, val_dataloader, device, epochs, patie
     plt.plot(results["val_acc"], label = "Val accuracy")
     plt.legend()
     
+    return results'''
+
+# Training loop -> results dictionary
+def training_loop(model, train_dataloader, val_dataloader, device, epochs, patience, save_path):
+    # empty dict for restore results
+    results = {"train_loss": [], "train_acc": [], "val_loss": [], "val_acc": []}
+
+    # hardcode loss_fn and optimizer
+    loss_fn = nn.CrossEntropyLoss()
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.0005)
+
+    # initialize best_val_loss
+    best_val_loss = float("inf")
+
+    # loop through epochs
+    for epoch in range(epochs):
+        train_loss, train_acc = train(model=model,
+                                      dataloader=train_dataloader,
+                                      loss_fn=loss_fn,
+                                      optimizer=optimizer,
+                                      device=device)
+
+        val_loss, val_acc = val(model=model,
+                                dataloader=val_dataloader,
+                                loss_fn=loss_fn,
+                                device=device)
+
+        # print results for each epoch
+        print(f"Epoch: {epoch + 1}\n"
+              f"Train loss: {train_loss:.4f} | Train accuracy: {(train_acc * 100):.3f}%\n"
+              f"Val loss: {val_loss:.4f} | Val accuracy: {(val_acc * 100):.3f}%")
+
+        # record results for each epoch
+        results["train_loss"].append(train_loss)
+        results["train_acc"].append(train_acc)
+        results["val_loss"].append(val_loss)
+        results["val_acc"].append(val_acc)
+
+        # save the model if validation loss improves
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            torch.save(model.state_dict(), save_path)
+
+        # early stopping
+        if epoch > patience and all(results["val_loss"][i] >= results["val_loss"][i - 1] for i in range(1 - patience, 1)):
+            print(f"Early stopping at epoch {epoch + 1}")
+            break
+
+    # plt results after early_stopping
+    plt.figure(figsize=(8, 4))
+    plt.subplot(1, 2, 1)
+    plt.title("Loss")
+    plt.plot(results["train_loss"], label="Train loss")
+    plt.plot(results["val_loss"], label="Val loss")
+    plt.legend()
+
+    plt.subplot(1, 2, 2)
+    plt.title("Accuracy")
+    plt.plot(results["train_acc"], label="Train accuracy")
+    plt.plot(results["val_acc"], label="Val accuracy")
+    plt.legend()
+
     return results
 
+
+
 if __name__ == '__main__':
-    resnet_weight = torchvision.models.ResNet50_Weights.DEFAUL
+    resnet_weight = torchvision.models.ResNet50_Weights.DEFAULT
     resnet_model = torchvision.models.resnet50(weights = resnet_weight)
+    save_path = "./model_weights.pth"
 
     for param in resnet_model.parameters():
         param.requires_grad = False
@@ -277,7 +344,8 @@ if __name__ == '__main__':
                                 val_dataloader = resnet_val_dataloader,
                                 device = device,
                                 epochs = 30,
-                                patience = 5
+                                patience = 5,
+                                save_path=save_path
                                 )
 
     # empty list store predicted labels
@@ -294,6 +362,7 @@ if __name__ == '__main__':
             probabilities = torch.softmax(logits, dim=1)
             labels = torch.argmax(probabilities, dim=1).tolist()
             predict_label_list.extend(labels)
+        print(predict_label_list)
 
     # Get the CSV result
     df = pd.DataFrame({"ID": range(len(predict_label_list)), "Category": predict_label_list})
